@@ -62,16 +62,16 @@ bool RegionAutomaton::isPartialRun (std::vector<State> run) const
 {
   std::vector<State> CStates;
   std::vector<State> NStates;
-  for (auto it = regionStates.begin ();it != regionStates.end (); it++) {
+  for (auto it = abstractedStates.begin ();it != abstractedStates.end (); it++) {
     if (it->first == run.front()) {
-      CStates.push_back (it-regionStates.begin ());
+      CStates.push_back (it-abstractedStates.begin ());
     }
   }
 
   for (auto it = run.begin (); it != run.end () - 1; it++) {
     for (const auto s: CStates ) {
       for (const Edge &e: edges[s]) {
-        if (regionStates[e.target].first == *(it+1)) {
+        if (abstractedStates[e.target].first == *(it+1)) {
           NStates.push_back (e.target);
         }
       }
@@ -112,46 +112,46 @@ bool RegionAutomaton::isPartialRun2 (const RegionAutomaton &RA,
   }
   std::vector<RAState> CStates;
 
-  TAState taState1 = RA.regionStates[r1.front()].first;
-  Region region1 = RA.regionStates[r1.front()].second;
-  TAState taState2 = RA.regionStates[r2.front()].first;
-  Region region2 = RA.regionStates[r2.front()].second;
+  TAState taState1 = RA.abstractedStates[r1.front()].first;
+  Region region1 = RA.abstractedStates[r1.front()].second;
+  TAState taState2 = RA.abstractedStates[r2.front()].first;
+  Region region2 = RA.abstractedStates[r2.front()].second;
   
   const auto NVar = region1.max_constraints.size();
   const auto toIState = [&](RAState s1,RAState s2) -> RAState
     {return s1 + TAStateSize * s2;};
 
   TAState iState = toIState (taState1,taState2);
-  for (auto it = regionStates.begin ();it != regionStates.end (); it++) {
+  for (auto it = abstractedStates.begin ();it != abstractedStates.end (); it++) {
     std::shared_ptr<Region> re1,re2;
     it->second.cutVars (re1,0,NVar-1);
     it->second.cutVars (re2,NVar,NVar*2-1);
     
     if (it->first == iState && *re1 == region1 && *re2 == region2) {
-      CStates.push_back (it-regionStates.begin ());
+      CStates.push_back (it-abstractedStates.begin ());
     }
   }
 
   for (int i = 1; i < r1.size(); i++) {
-    const auto taState1 = RA.regionStates[r1[i]].first;
-    const auto taState2 = RA.regionStates[r2[i]].first;
+    const auto taState1 = RA.abstractedStates[r1[i]].first;
+    const auto taState2 = RA.abstractedStates[r2[i]].first;
     const auto iState = toIState (taState1,taState2);
 
-    const auto region1 = RA.regionStates[r1[i]].second;
-    const auto region2 = RA.regionStates[r2[i]].second;
+    const auto region1 = RA.abstractedStates[r1[i]].second;
+    const auto region2 = RA.abstractedStates[r2[i]].second;
     std::vector<RAState> NStates;
     for (const auto s: CStates ) {
       for (const Edge &e: edges[s]) {
         std::shared_ptr<Region> re1,re2;
         if (NVar == 0) {
-          re1 = std::make_shared<Region>(regionStates[e.target].second);
-          re2 = std::make_shared<Region>(regionStates[e.target].second);
+          re1 = std::make_shared<Region>(abstractedStates[e.target].second);
+          re2 = std::make_shared<Region>(abstractedStates[e.target].second);
         } else {
-          regionStates[e.target].second.cutVars (re1,0,NVar-1);
-          regionStates[e.target].second.cutVars (re2,NVar,NVar*2-1);
+          abstractedStates[e.target].second.cutVars (re1,0,NVar-1);
+          abstractedStates[e.target].second.cutVars (re2,NVar,NVar*2-1);
         }
         
-        if (regionStates[e.target].first == iState && *re1 == region1 && *re2 == region2) {
+        if (abstractedStates[e.target].first == iState && *re1 == region1 && *re2 == region2) {
           NStates.push_back (e.target);
         }
       }

@@ -19,7 +19,7 @@ void intersectionTA (const TimedAutomaton<NVar1> &in1, const TimedAutomaton<NVar
   out.initialStates.clear ();
   out.initialStates.reserve (in1.initialStates.size() * in2.initialStates.size());
   for (State s1: in1.initialStates) {
-    for (State s2: in1.initialStates) {
+    for (State s2: in2.initialStates) {
       out.initialStates.push_back (toIState(s1,s2));
     }
   }
@@ -28,7 +28,7 @@ void intersectionTA (const TimedAutomaton<NVar1> &in1, const TimedAutomaton<NVar
   out.acceptingStates.clear ();
   out.acceptingStates.reserve (in1.acceptingStates.size() * in2.acceptingStates.size());
   for (State s1: in1.acceptingStates) {
-    for (State s2: in1.acceptingStates) {
+    for (State s2: in2.acceptingStates) {
       out.acceptingStates.push_back (toIState(s1,s2));
     }
   }

@@ -7,14 +7,14 @@
 #include <set>
 #include "types.hh"
 
-struct Zone {
+struct ansZone {
   std::pair<double,bool> upperBeginConstraint;
   std::pair<double,bool> lowerBeginConstraint;
   std::pair<double,bool> upperEndConstraint;
   std::pair<double,bool> lowerEndConstraint;
   std::pair<double,bool> upperDeltaConstraint;
   std::pair<double,bool> lowerDeltaConstraint;  
-  inline bool operator == (const Zone z) const {
+  inline bool operator == (const ansZone z) const {
     return upperBeginConstraint == z.upperBeginConstraint &&
       lowerBeginConstraint == z.lowerBeginConstraint &&
       upperEndConstraint == z.upperEndConstraint &&
@@ -73,7 +73,7 @@ inline void updateConstraint(std::pair<double,bool>& upperConstraint,
 template <int NVar>
 void naive (std::vector<std::pair<Alphabet,double> > word,
               TimedAutomaton <NVar> A,
-              std::vector<Zone> &ans)
+              std::vector<ansZone> &ans)
 {
   struct InternalState{
     using Variables = char;
@@ -152,14 +152,14 @@ void naive (std::vector<std::pair<Alphabet,double> > word,
       
       for (const auto &state : LastStates) {
         const State s = state.s;
-
+        
         for (const auto &edge : A.edges[s]) {
           if (edge.c == c) {
 
             std::pair<double,bool> upperBeginConstraint = state.upperConstraint;
             std::pair<double,bool> lowerBeginConstraint = state.lowerConstraint;
             bool transitable = true;
-
+            
             for (const auto& delta: edge.guard) {
               if (state.resetTime[delta.x]) {
                 if (!delta.satisfy(t - state.resetTime[delta.x])) {

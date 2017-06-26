@@ -32,9 +32,9 @@ void ta_to_ra (const TimedAutomaton<NVar> &TA,RegionAutomaton &RA)
   RA.initialStates.resize (numOfStates);
   iota (RA.initialStates.begin(), RA.initialStates.end(),0);
 
-  RA.regionStates.reserve (numOfStates);
+  RA.abstractedStates.reserve (numOfStates);
   for (const auto &conf : TA.initialStates ) {
-    RA.regionStates.push_back (std::make_pair(conf,initialRegion));
+    RA.abstractedStates.push_back (std::make_pair(conf,initialRegion));
   }
 
   /*!
@@ -43,9 +43,9 @@ void ta_to_ra (const TimedAutomaton<NVar> &TA,RegionAutomaton &RA)
     A configuration consistes of a tuple ((conf,\alpha),conf,alpha). Remark (conf,\alpha) is not a pair but just a number representing a state of RA.
    */
   std::vector<std::tuple<RAState,TAState,Region> > nextConf;
-  nextConf.resize (RA.regionStates.size());
+  nextConf.resize (RA.abstractedStates.size());
   for (std::size_t i = 0; i < nextConf.size();i++) {
-    nextConf[i] = std::make_tuple(i,RA.regionStates[i].first,RA.regionStates[i].second);
+    nextConf[i] = std::make_tuple(i,RA.abstractedStates[i].first,RA.abstractedStates[i].second);
   }
   
   /*! 
@@ -112,15 +112,15 @@ void ta_to_ra (const TimedAutomaton<NVar> &TA,RegionAutomaton &RA)
             const auto targetRegionState = std::make_pair(edge.target,std::make_tuple(targetRegion.integer_parts,targetRegion.frac_order,targetRegion.max_constraints));
             const auto targetStateInRA = regions_in_ra.find(targetRegionState);
 #ifdef DEBUG
-            cout << (targetStateInRA == RA.regionStates.end()) << endl;
-            cout << (int)get<0>(conf) << "-" << edge.c << ">" << static_cast<int>(targetStateInRA - RA.regionStates.begin()) << endl;
+            cout << (targetStateInRA == RA.abstractedStates.end()) << endl;
+            cout << (int)get<0>(conf) << "-" << edge.c << ">" << static_cast<int>(targetStateInRA - RA.abstractedStates.begin()) << endl;
 #endif
             // targetRegionState is already added
             if (targetStateInRA != regions_in_ra.end()) {
               RA.edges[std::get<0>(conf)].push_back ({std::get<0>(conf),targetStateInRA->second,edge.c});
             } else {
 #ifdef DEBUG
-              cout << "added " << (int)numOfStates << " = " << targetStateInRA - RA.regionStates.begin()<< endl;
+              cout << "added " << (int)numOfStates << " = " << targetStateInRA - RA.abstractedStates.begin()<< endl;
 #endif
               RA.edges[std::get<0>(conf)].push_back ({std::get<0>(conf),static_cast<State>(numOfStates),edge.c});
               if (binary_search (TA.acceptingStates.begin(), 
@@ -128,7 +128,7 @@ void ta_to_ra (const TimedAutomaton<NVar> &TA,RegionAutomaton &RA)
                 RA.acceptingStates.push_back (numOfStates);
               }
               regions_in_ra[targetRegionState] = numOfStates;
-              RA.regionStates.push_back (std::make_pair (edge.target,targetRegion));
+              RA.abstractedStates.push_back (std::make_pair (edge.target,targetRegion));
               nextConf.push_back (std::make_tuple (numOfStates,edge.target,targetRegion));
               numOfStates++;
               RA.edges.resize(numOfStates);

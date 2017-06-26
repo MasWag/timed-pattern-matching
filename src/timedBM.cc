@@ -1,4 +1,3 @@
-#include <cstdio>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -12,7 +11,7 @@
 #include <boost/program_options.hpp>
 
 #include "types.hh"
-#include "naive.hh"
+#include "timedBM.hh"
 
 #ifndef RUNNING_TEST
 
@@ -23,12 +22,17 @@ int main(int argc, char *argv[])
   std::cin.tie(0);
   std::ios::sync_with_stdio(false);
   std::vector<std::pair<Alphabet,double> > w;
-  std::vector<ansZone> ans;
+#ifdef DISCARD_ANS
+  AnsNum<ansZone> ans;
+#else
+  AnsVec<ansZone> ans;
+#endif
 
   // visible options
   options_description visible("description of options");
   int testNum;
   int loopTimes;
+  double resolution;
   std::string fileName;
   State length;
   visible.add_options()
@@ -36,8 +40,10 @@ int main(int argc, char *argv[])
     ("quiet,q", "quiet")
     ("test,t", value<int>(&testNum)->default_value(0),"number of test")
     ("loop,l", value<int>(&loopTimes)->default_value(1),"loop times")
+    ("resolution", value<double>(&resolution)->default_value(1.0),"resolution of clock (used in test case 3)")
+    ("length", value<State>(&length)->default_value(1),"length of the pattern (used in test case 7)")
     ("input,i", value<std::string>(&fileName)->default_value("stdin"),"input file")
-    ("length", value<State>(&length)->default_value(1),"length of the pattern (used in test case 7)");
+    ("printhashnum,p", "print number of calculated hashes");
 
   command_line_parser parser(argc, argv);
   parser.options (visible);
@@ -104,17 +110,17 @@ int main(int argc, char *argv[])
   TA3.edges = {
     {{0,1,'p',{},{}},
      {0,2,'q',{},{}},
-     {0,4,'$',{},{{ConstraintMaker(2) <= 80}}}},
-    {{1,0,'r',{0},{{ConstraintMaker(0) <= 10}}},
+     {0,4,'$',{},{{ConstraintMaker(2) <= 80 * resolution}}}},
+    {{1,0,'r',{0},{{ConstraintMaker(0) <= 10 * resolution}}},
      {1,2,'q',{},{}}},
-    {{2,0,'s',{1},{{ConstraintMaker(1) <= 10}}},
+    {{2,0,'s',{1},{{ConstraintMaker(1) <= 10 * resolution}}},
      {2,3,'p',{},{}}},
-    {{3,1,'s',{1},{{ConstraintMaker(1) <= 10}}},
-     {3,2,'r',{0},{{ConstraintMaker(0) <= 10}}}},
+    {{3,1,'s',{1},{{ConstraintMaker(1) <= 10 * resolution}}},
+     {3,2,'r',{0},{{ConstraintMaker(0) <= 10 * resolution}}}},
     {}
   };
   TA3.acceptingStates = {4};
-  TA3.max_constraints = {10,10,80};
+  TA3.max_constraints = {int(10 * resolution) ,int(10 * resolution), int(80 * resolution)};
   
   // case 4
   constexpr int numOfVariables4 = 1;
@@ -270,8 +276,9 @@ int main(int argc, char *argv[])
     {}
   };
 
-  TA6.acceptingStates = {7};
   TA6.max_constraints = {1};
+  TA6.acceptingStates = {7};
+
   // case 7
   constexpr int numOfVariables7 = 1;
   TimedAutomaton <numOfVariables7> TA7;
@@ -289,6 +296,7 @@ int main(int argc, char *argv[])
   TA7.acceptingStates = {length+3};
   TA7.max_constraints = {1};
 
+
   // case 8
   constexpr int numOfVariables8 = 1;
   TimedAutomaton <numOfVariables8> TA8;
@@ -303,7 +311,7 @@ int main(int argc, char *argv[])
 
   TA8.max_constraints = {1};
   TA8.acceptingStates = {1};
- 
+
   // case 9
   // The complex example in ICALP 2017
   constexpr int numOfVariables9 = 1;
@@ -436,63 +444,93 @@ int main(int argc, char *argv[])
     }
   }
 
+  int hashCalcCount = 0;
   for (int i = 0;i < loopTimes; i++ ) {
-    std::cout << "precomputation: " << 0 << " ms" << std::endl;
+    hashCalcCount = 0;
+    // auto start = std::chrono::system_clock::now();
     switch (testNum) {
     case 0:
-      naive (w,TA0,ans);
+      timedBoyerMooreWithZone (w,TA0,ans,hashCalcCount);
       break;
     case 1:
-      naive (w,TA1,ans);
+      timedBoyerMooreWithZone (w,TA1,ans,hashCalcCount);
       break;
     case 2:
-      naive (w,TA2,ans);
+      timedBoyerMooreWithZone (w,TA2,ans,hashCalcCount);
       break;
     case 3:
-      naive (w,TA3,ans);
+      timedBoyerMooreWithZone (w,TA3,ans,hashCalcCount);
       break;
     case 4:
-      naive (w,TA4,ans);
+      timedBoyerMooreWithZone (w,TA4,ans,hashCalcCount);
       break;
     case 5:
-      naive (w,TA5,ans);
+      timedBoyerMooreWithZone (w,TA5,ans,hashCalcCount);
       break;
     case 6:
-      naive (w,TA6,ans);
+      timedBoyerMooreWithZone (w,TA6,ans,hashCalcCount);
       break;
     case 7:
-      naive (w,TA7,ans);
+      timedBoyerMooreWithZone (w,TA7,ans,hashCalcCount);
       break;
     case 8:
-      naive (w,TA8,ans);
+      timedBoyerMooreWithZone (w,TA8,ans,hashCalcCount);
       break;
     case 9:
-      naive (w,TA9,ans);
+      timedBoyerMooreWithZone (w,TA9,ans,hashCalcCount);
       break;
     case 10:
-      naive (w,Phi8,ans);
+      timedBoyerMooreWithZone (w,Phi8,ans,hashCalcCount);
       break;
     case 11:
-      naive (w,Phi5,ans);
+      timedBoyerMooreWithZone (w,Phi5,ans,hashCalcCount);
       break;
     case 12:
-      naive (w,Phi4,ans);
+      timedBoyerMooreWithZone (w,Phi4,ans,hashCalcCount);
       break;
     case 13:
-      naive (w,hscc2014,ans);
+      timedBoyerMooreWithZone (w,hscc2014,ans,hashCalcCount);
       break;
     case 14:
-      naive (w,hscc2014_2,ans);
+      timedBoyerMooreWithZone (w,hscc2014_2,ans,hashCalcCount);
       break;
     }
+    // auto end = std::chrono::system_clock::now();
+    // auto dur = end - start;
+    // auto msec = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
+    // std::cout << msec << " ms" << std::endl;
   }
 
   std::cout << ans.size() << " zones" << std::endl;
 
+  if (vm.count("printhashnum")) {
+    switch (testNum) {
+    case 0:
+      std::cout << hashCalcCount << "/" << TA0.edges.size() << " hash calculated" << std::endl;    
+      break;
+    case 1:
+      std::cout << hashCalcCount << "/" << TA1.edges.size() << " hash calculated" << std::endl;    
+      break;
+    case 2:
+      std::cout << hashCalcCount << "/" << TA2.edges.size() << " hash calculated" << std::endl;    
+      break;
+    case 3:
+      std::cout << hashCalcCount << "/" << TA3.edges.size() << " hash calculated" << std::endl;    
+      break;
+    case 4:
+      std::cout << hashCalcCount << "/" << TA4.edges.size() << " hash calculated" << std::endl;    
+      break;
+    case 5:
+      std::cout << hashCalcCount << "/" << TA5.edges.size() << " hash calculated" << std::endl;    
+      break;
+    }
+  }
+  
   if (vm.count ("quiet")) {
     return 0;
   }
 
+#ifndef DISCARD_ANS
   // print result
   std::cout << "Results" << std::endl;
   for (const auto &a : ans) {
@@ -510,6 +548,7 @@ int main(int argc, char *argv[])
       a.upperDeltaConstraint.first << std::endl;
     std::cout << "=============================" << std::endl;
   }
+#endif
 
   return 0;
 }

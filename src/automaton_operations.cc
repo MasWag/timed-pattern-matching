@@ -90,8 +90,8 @@ void removeUnreachableStates (const RegionAutomaton &in, RegionAutomaton &out)
     }
   }
 
-  out.regionStates.resize(out.edges.size());
+  out.abstractedStates.resize(out.edges.size());
   for (auto it = reachableStates.begin (); it != reachableStates.end (); it++) {
-    out.regionStates[it - reachableStates.begin ()] = in.regionStates[*it];
+    out.abstractedStates[it - reachableStates.begin ()] = in.abstractedStates[*it];
   }
 }

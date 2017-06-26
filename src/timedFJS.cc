@@ -1,7 +1,6 @@
 #include <cstdio>
-#include <fstream>
-#include <iomanip>
 #include <iostream>
+#include <iomanip>
 #include <array>
 #include <valarray>
 #include <vector>
@@ -12,7 +11,7 @@
 #include <boost/program_options.hpp>
 
 #include "types.hh"
-#include "naive.hh"
+#include "timedFJS.hh"
 
 #ifndef RUNNING_TEST
 
@@ -20,24 +19,24 @@ using namespace boost::program_options;
 
 int main(int argc, char *argv[])
 {
-  std::cin.tie(0);
-  std::ios::sync_with_stdio(false);
-  std::vector<std::pair<Alphabet,double> > w;
-  std::vector<ansZone> ans;
-
   // visible options
   options_description visible("description of options");
   int testNum;
   int loopTimes;
+  double resolution;
   std::string fileName;
   State length;
+  bool isBinary = false;
   visible.add_options()
     ("help,h", "help")
     ("quiet,q", "quiet")
     ("test,t", value<int>(&testNum)->default_value(0),"number of test")
     ("loop,l", value<int>(&loopTimes)->default_value(1),"loop times")
+    ("binary,b", "binary mode")
+    ("resolution", value<double>(&resolution)->default_value(1.0),"resolution of clock (used in test case 3)")
+    ("length", value<State>(&length)->default_value(1),"length of the pattern (used in test case 7)")
     ("input,i", value<std::string>(&fileName)->default_value("stdin"),"input file")
-    ("length", value<State>(&length)->default_value(1),"length of the pattern (used in test case 7)");
+    ("printhashnum,p", "print number of calculated hashes");
 
   command_line_parser parser(argc, argv);
   parser.options (visible);
@@ -50,10 +49,14 @@ int main(int argc, char *argv[])
               << visible << std::endl;
     return 0;
   }
+  if (vm.count("binary")) {
+    isBinary = true;
+  }
 
   // case 0
   constexpr int numOfVariables0 = 0;
   TimedAutomaton <numOfVariables0> TA0;
+
   TA0.initialStates = {0};
   TA0.edges = {
     {{0,1,'a',{},{}}},
@@ -65,9 +68,11 @@ int main(int argc, char *argv[])
   TA0.acceptingStates = {3};
   TA0.max_constraints = {};
 
+
   // case 1
   constexpr int numOfVariables1 = 0;
   TimedAutomaton <numOfVariables1> TA1;
+
   TA1.initialStates = {0};
   TA1.edges = {
     {{0,1,'a',{},{}}},
@@ -80,9 +85,11 @@ int main(int argc, char *argv[])
   TA1.acceptingStates = {3};
   TA1.max_constraints = {};
 
+
   // case 2
   constexpr int numOfVariables2 = 2;
   TimedAutomaton <numOfVariables2> TA2;
+
   TA2.initialStates = {0};
   TA2.edges = {
     {{0,0,'a',{1},{}},
@@ -97,28 +104,32 @@ int main(int argc, char *argv[])
   TA2.acceptingStates = {3};
   TA2.max_constraints = {1,1};
 
+
   // case 3
   constexpr int numOfVariables3 = 3;
   TimedAutomaton <numOfVariables3> TA3;
+
   TA3.initialStates = {0};
   TA3.edges = {
     {{0,1,'p',{},{}},
      {0,2,'q',{},{}},
-     {0,4,'$',{},{{ConstraintMaker(2) <= 80}}}},
-    {{1,0,'r',{0},{{ConstraintMaker(0) <= 10}}},
+     {0,4,'$',{},{{ConstraintMaker(2) <= 80 * resolution}}}},
+    {{1,0,'r',{0},{{ConstraintMaker(0) <= 10 * resolution}}},
      {1,2,'q',{},{}}},
-    {{2,0,'s',{1},{{ConstraintMaker(1) <= 10}}},
+    {{2,0,'s',{1},{{ConstraintMaker(1) <= 10 * resolution}}},
      {2,3,'p',{},{}}},
-    {{3,1,'s',{1},{{ConstraintMaker(1) <= 10}}},
-     {3,2,'r',{0},{{ConstraintMaker(0) <= 10}}}},
+    {{3,1,'s',{1},{{ConstraintMaker(1) <= 10 * resolution}}},
+     {3,2,'r',{0},{{ConstraintMaker(0) <= 10 * resolution}}}},
     {}
   };
   TA3.acceptingStates = {4};
-  TA3.max_constraints = {10,10,80};
+  TA3.max_constraints = {int(10 * resolution) ,int(10 * resolution), int(80 * resolution)};
+
   
   // case 4
   constexpr int numOfVariables4 = 1;
   TimedAutomaton <numOfVariables4> TA4;
+
   TA4.initialStates = {0};
   TA4.edges = {
     {{0,1,'a',{0},{{ConstraintMaker(0) > 1}}}},
@@ -137,9 +148,11 @@ int main(int argc, char *argv[])
   TA4.acceptingStates = {7};
   TA4.max_constraints = {1};
 
+
   // case 5
   constexpr int numOfVariables5 = 1;
   TimedAutomaton <numOfVariables5> TA5;
+
   TA5.initialStates = {0};
   TA5.edges = {
     {{0,1,'a',{0},{{ConstraintMaker(0) > 1}}}},
@@ -254,9 +267,11 @@ int main(int argc, char *argv[])
   TA5.acceptingStates = {103};
   TA5.max_constraints = {1};
 
+
   // case 6
   constexpr int numOfVariables6 = 1;
   TimedAutomaton <numOfVariables6> TA6;
+
   TA6.initialStates = {0};
   TA6.edges = {
     {{0,1,'b',{0},{}}},
@@ -270,11 +285,14 @@ int main(int argc, char *argv[])
     {}
   };
 
-  TA6.acceptingStates = {7};
   TA6.max_constraints = {1};
+  TA6.acceptingStates = {7};
+
+
   // case 7
   constexpr int numOfVariables7 = 1;
   TimedAutomaton <numOfVariables7> TA7;
+
   TA7.initialStates = {0};
   TA7.edges.resize(length + 4);  
   TA7.edges[0] = {{0,1,'a',{0},{{ConstraintMaker(0) > 1}}}};
@@ -289,9 +307,11 @@ int main(int argc, char *argv[])
   TA7.acceptingStates = {length+3};
   TA7.max_constraints = {1};
 
+
   // case 8
   constexpr int numOfVariables8 = 1;
   TimedAutomaton <numOfVariables8> TA8;
+
   TA8.initialStates = {0};
   TA8.edges.resize(2 + length * 2);
   TA8.edges[0].reserve (length);
@@ -303,11 +323,13 @@ int main(int argc, char *argv[])
 
   TA8.max_constraints = {1};
   TA8.acceptingStates = {1};
- 
+
+
   // case 9
   // The complex example in ICALP 2017
   constexpr int numOfVariables9 = 1;
   TimedAutomaton <numOfVariables9> TA9;
+
   TA9.initialStates = {0};
   // g_1 :: 0,1,2,3
   // g_2 :: 4,5,6,7
@@ -354,6 +376,7 @@ int main(int argc, char *argv[])
 
   TA9.acceptingStates = {7};
   TA9.max_constraints = {1};
+
 
   // case 10
   // g_1 :: 1
@@ -415,84 +438,107 @@ int main(int argc, char *argv[])
   hscc2014_2.max_constraints = {100};
 
   int N;
-  if (fileName == "stdin") {
-    std::cin >> N;
-    w.resize (N);
-    for (auto &p : w) {
-      char c;
-      double t;
-      std::cin >> c >> t;
-      p = std::make_pair (c,t);
-    }
+  FILE* file = stdin;
+  if (fileName != "stdin") {
+    file = fopen(fileName.c_str(), "r");
+  }
+  if (isBinary) {
+    fread(&N, sizeof(int), 1, file);
   } else {
-    std::ifstream file(fileName);
-    file >> N;
-    w.resize (N);
-    for (auto &p : w) {
-      char c;
-      double t;
-      file >> c >> t;
-      p = std::make_pair (c,t);
+    fscanf(file, "%d", &N);
+  }
+  
+#ifdef LAZY_READ
+  WordLazyDeque<std::pair<Alphabet,double> > w(N, file, isBinary);
+  AnsNum<ansZone> ans;
+#else
+  WordVector<std::pair<Alphabet,double> > w(N, file, isBinary);
+  AnsVec<ansZone> ans;
+#endif
+
+  int hashCalcCount = 0;
+  for (int i = 0;i < loopTimes; i++ ) {
+    hashCalcCount = 0;
+    switch (testNum) {
+    case 0:
+      timedFranekJenningsSmyth (w,TA0,ans,hashCalcCount);
+      break;
+    case 1:
+      timedFranekJenningsSmyth (w,TA1,ans,hashCalcCount);
+      break;
+    case 2:
+      timedFranekJenningsSmyth (w,TA2,ans,hashCalcCount);
+      break;
+    case 3:
+      timedFranekJenningsSmyth (w,TA3,ans,hashCalcCount);
+      break;
+    case 4:
+      timedFranekJenningsSmyth (w,TA4,ans,hashCalcCount);
+      break;
+    case 5:
+      timedFranekJenningsSmyth (w,TA5,ans,hashCalcCount);
+      break;
+    case 6:
+      timedFranekJenningsSmyth (w,TA6,ans,hashCalcCount);
+      break;
+    case 7:
+      timedFranekJenningsSmyth (w,TA7,ans,hashCalcCount);
+      break;
+    case 8:
+      timedFranekJenningsSmyth (w,TA8,ans,hashCalcCount);
+      break;
+    case 9:
+      timedFranekJenningsSmyth (w,TA9,ans,hashCalcCount);
+      break;
+    case 10:
+      timedFranekJenningsSmyth (w,Phi8,ans,hashCalcCount);
+      break;
+    case 11:
+      timedFranekJenningsSmyth (w,Phi5,ans,hashCalcCount);
+      break;
+    case 12:
+      timedFranekJenningsSmyth (w,Phi4,ans,hashCalcCount);
+      break;
+    case 13:
+      timedFranekJenningsSmyth (w,hscc2014,ans,hashCalcCount);
+      break;
+    case 14:
+      timedFranekJenningsSmyth (w,hscc2014_2,ans,hashCalcCount);
+      break;
     }
   }
 
-  for (int i = 0;i < loopTimes; i++ ) {
-    std::cout << "precomputation: " << 0 << " ms" << std::endl;
-    switch (testNum) {
-    case 0:
-      naive (w,TA0,ans);
-      break;
-    case 1:
-      naive (w,TA1,ans);
-      break;
-    case 2:
-      naive (w,TA2,ans);
-      break;
-    case 3:
-      naive (w,TA3,ans);
-      break;
-    case 4:
-      naive (w,TA4,ans);
-      break;
-    case 5:
-      naive (w,TA5,ans);
-      break;
-    case 6:
-      naive (w,TA6,ans);
-      break;
-    case 7:
-      naive (w,TA7,ans);
-      break;
-    case 8:
-      naive (w,TA8,ans);
-      break;
-    case 9:
-      naive (w,TA9,ans);
-      break;
-    case 10:
-      naive (w,Phi8,ans);
-      break;
-    case 11:
-      naive (w,Phi5,ans);
-      break;
-    case 12:
-      naive (w,Phi4,ans);
-      break;
-    case 13:
-      naive (w,hscc2014,ans);
-      break;
-    case 14:
-      naive (w,hscc2014_2,ans);
-      break;
-    }
-  }
 
   std::cout << ans.size() << " zones" << std::endl;
 
+  if (vm.count("printhashnum")) {
+    switch (testNum) {
+    case 0:
+      std::cout << hashCalcCount << "/" << TA0.edges.size() << " hash calculated" << std::endl;    
+      break;
+    case 1:
+      std::cout << hashCalcCount << "/" << TA1.edges.size() << " hash calculated" << std::endl;    
+      break;
+    case 2:
+      std::cout << hashCalcCount << "/" << TA2.edges.size() << " hash calculated" << std::endl;    
+      break;
+    case 3:
+      std::cout << hashCalcCount << "/" << TA3.edges.size() << " hash calculated" << std::endl;    
+      break;
+    case 4:
+      std::cout << hashCalcCount << "/" << TA4.edges.size() << " hash calculated" << std::endl;    
+      break;
+    case 5:
+      std::cout << hashCalcCount << "/" << TA5.edges.size() << " hash calculated" << std::endl;    
+      break;
+    }
+  }
+  
   if (vm.count ("quiet")) {
     return 0;
   }
 
+#ifndef LAZY_READ
   // print result
   std::cout << "Results" << std::endl;
   for (const auto &a : ans) {
@@ -510,6 +556,7 @@ int main(int argc, char *argv[])
       a.upperDeltaConstraint.first << std::endl;
     std::cout << "=============================" << std::endl;
   }
+#endif
 
   return 0;
 }

@@ -117,21 +117,21 @@ void ta_to_ra_naive (const TimedAutomaton<NVar> &TA,RegionAutomaton &RA)
 
   // std::cout << "# of regions: " << regions.size() << std::endl;
   // added regions  
-  RA.regionStates.reserve (TA.edges.size() * regions.size());
+  RA.abstractedStates.reserve (TA.edges.size() * regions.size());
 
   boost::unordered_map<std::tuple<TAState,std::vector< std::pair<int,int> >, std::list<std::list<int> > >, RAState> revRegionStates;
   for(TAState s = 0; s < TA.edges.size();s++) {
     for (const auto &region: regions) {
-      revRegionStates[std::make_tuple(s,region.integer_parts,region.frac_order)] = RA.regionStates.size();
-      RA.regionStates.push_back ({s,region});
+      revRegionStates[std::make_tuple(s,region.integer_parts,region.frac_order)] = RA.abstractedStates.size();
+      RA.abstractedStates.push_back ({s,region});
     }
   }
 
   // make edges
   RA.edges.resize (TA.edges.size() * regions.size());
   
-  for (RAState rs = 0; rs < RA.regionStates.size();rs++) {
-    const auto &region = RA.regionStates[rs];
+  for (RAState rs = 0; rs < RA.abstractedStates.size();rs++) {
+    const auto &region = RA.abstractedStates[rs];
     Region now,next;
     bool ss;
     now = region.second;
@@ -174,7 +174,7 @@ void ta_to_ra_naive (const TimedAutomaton<NVar> &TA,RegionAutomaton &RA)
           }
         
           RAState raTarget = revRegionStates[std::make_tuple(e.target, nregion.integer_parts,nregion.frac_order)];
-          //          RAState raTarget = find (RA.regionStates.begin(),RA.regionStates.end(),std::make_pair(e.target,nregion)) - RA.regionStates.begin();
+          //          RAState raTarget = find (RA.abstractedStates.begin(),RA.abstractedStates.end(),std::make_pair(e.target,nregion)) - RA.abstractedStates.begin();
           // TODO: edges are duplicated.
           RA.edges[rs].push_back ({rs,raTarget,e.c});
         } else if (std::none_of(e.guard.begin(), e.guard.end(),

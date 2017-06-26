@@ -1,24 +1,41 @@
-PRODUCTS = naive timed-boyer-moore
-SRCS = ta_to_ra.cc types.cc naive.cc automaton_operations.cc calcLs.cc 
+PRODUCTS = naive timedFJS timedBM timedBM_region
+SRCS = $(wildcard *.cc)
+OBJS = $(SRCS:%.cc=%.o)
+HEADS = $(wildcard *.hh)
 
-CXXFLAGS = -std=c++11 -g -O3
-LDFLAGS = -lboost_program_options
+CXXFLAGS = -std=c++11 -march=native
+CXX_DEBUG_FLAGS = -g -O0
+CXX_RELEASE_FLAGS = -O3 -DPRODUCT -flto
+LDFLAGS = -march=native
+LDLIBS = -lboost_program_options
+LD_RELEASE_FLAGS = -O3 -DPRODUCT -flto
 
-all: $(PRODUCTS)
+
+.PHONY: debug
+debug: CXXFLAGS+=$(CXX_DEBUG_FLAGS)
+debug: all
+
+
+.PHONY: release
+release: CXXFLAGS+=$(CXX_RELEASE_FLAGS)
+release: LDFLAGS+=$(LD_RELEASE_FLAGS)
+release: all
+
+.PHONY: all clean depend 
+
+all: Makefile.depend $(PRODUCTS)
 
 LINK.o = $(CXX) $(LDFLAGS) $(TARGET_ARCH)
 
-timed-boyer-moore: timed-boyer-moore.o types.o calcLs.o automaton_operations.o
-timed-boyer-moore.o: timed-boyer-moore.hh types.hh ta_to_ra_naive.hh
-naive : naive.o
-naive.o : naive.hh types.hh
-calcLs.o : calcLs.hh types.hh
-automaton_operations.o: types.hh
+naive: naive.o
+timedFJS: timedFJS.o automaton_operations.o types.o
+timedBM: timedBM.o automaton_operations.o types.o
+timedBM_region: timedBM_region.o automaton_operations.o types.o
 
-timed-boyer-moore-only-ra.o: timed-boyer-moore.cc timed-boyer-moore.hh types.hh ta_to_ra_naive.hh
-	$(CXX) -c $(CXXFLAGS) -DONLY_RA $< -o $@
+Makefile.depend: $(SRCS)
+	$(CXX) -MM -MG $(SRCS) > Makefile.depend
 
-timed-boyer-moore-only-ra: timed-boyer-moore-only-ra.o types.o calcLs.o automaton_operations.o
+clean:
+	$(RM) *.o $(PRODUCTS) Makefile.depend
 
-clean: 
-	$(RM) *.o $(PRODUCTS)
+-include Makefile.depend

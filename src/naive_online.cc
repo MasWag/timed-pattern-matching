@@ -1,5 +1,6 @@
-#include <iomanip>
+#include <cstdio>
 #include <iostream>
+#include <iomanip>
 #include <array>
 #include <valarray>
 #include <vector>
@@ -10,7 +11,7 @@
 #include <boost/program_options.hpp>
 
 #include "types.hh"
-#include "timed-boyer-moore.hh"
+#include "naive_online.hh"
 
 #ifndef RUNNING_TEST
 
@@ -18,20 +19,23 @@ using namespace boost::program_options;
 
 int main(int argc, char *argv[])
 {
-  // std::cin.tie(0);
-  // std::ios::sync_with_stdio(false);
-  std::vector<std::pair<Alphabet,double> > w;
-  std::vector<Zone> ans;
-
   // visible options
   options_description visible("description of options");
   int testNum;
   int loopTimes;
+  double resolution;
+  std::string fileName;
+  State length;
+  bool isBinary = false;
   visible.add_options()
     ("help,h", "help")
     ("quiet,q", "quiet")
     ("test,t", value<int>(&testNum)->default_value(0),"number of test")
     ("loop,l", value<int>(&loopTimes)->default_value(1),"loop times")
+    ("binary,b", "binary mode")
+    ("resolution", value<double>(&resolution)->default_value(1.0),"resolution of clock (used in test case 3)")
+    ("length", value<State>(&length)->default_value(1),"length of the pattern (used in test case 7)")
+    ("input,i", value<std::string>(&fileName)->default_value("stdin"),"input file")
     ("printhashnum,p", "print number of calculated hashes");
 
   command_line_parser parser(argc, argv);
@@ -44,6 +48,9 @@ int main(int argc, char *argv[])
     std::cout << argv[0] << " [option]... <input_file>...\n"
               << visible << std::endl;
     return 0;
+  }
+  if (vm.count("binary")) {
+    isBinary = true;
   }
 
   // case 0
@@ -99,19 +106,18 @@ int main(int argc, char *argv[])
   TA3.edges = {
     {{0,1,'p',{},{}},
      {0,2,'q',{},{}},
-     {0,4,'$',{},{{ConstraintMaker(2) <= 80}}}},
-    {{1,0,'r',{0},{{ConstraintMaker(0) <= 10}}},
+     {0,4,'$',{},{{ConstraintMaker(2) <= 80 * resolution}}}},
+    {{1,0,'r',{0},{{ConstraintMaker(0) <= 10 * resolution}}},
      {1,2,'q',{},{}}},
-    {{2,0,'s',{1},{{ConstraintMaker(1) <= 10}}},
+    {{2,0,'s',{1},{{ConstraintMaker(1) <= 10 * resolution}}},
      {2,3,'p',{},{}}},
-    {{3,1,'s',{1},{{ConstraintMaker(1) <= 10}}},
-     {3,2,'r',{0},{{ConstraintMaker(0) <= 10}}}},
+    {{3,1,'s',{1},{{ConstraintMaker(1) <= 10 * resolution}}},
+     {3,2,'r',{0},{{ConstraintMaker(0) <= 10 * resolution}}}},
     {}
   };
   TA3.acceptingStates = {4};
-  TA3.max_constraints = {10,10,80};
-  
-  // case 4
+  TA3.max_constraints = {int(10 * resolution) ,int(10 * resolution), int(80 * resolution)};
+
   constexpr int numOfVariables4 = 1;
   TimedAutomaton <numOfVariables4> TA4;
   TA4.initialStates = {0};
@@ -268,72 +274,239 @@ int main(int argc, char *argv[])
   TA6.max_constraints = {1};
   TA6.acceptingStates = {7};
 
+  // case 7
+  constexpr int numOfVariables7 = 1;
+  TimedAutomaton <numOfVariables7> TA7;
+  TA7.initialStates = {0};
+  TA7.edges.resize(length + 4);  
+  TA7.edges[0] = {{0,1,'a',{0},{{ConstraintMaker(0) > 1}}}};
+  for (State e = 1; e <= length; e++) {
+    TA7.edges[e] = {{e,e+1,'a',{0},{{ConstraintMaker(0) < 1}}}};
+  }
+  TA7.edges[length + 1] = {{1+length,2+length,'a',{0},{{ConstraintMaker(0) > 1}}},
+                           {1+length,1+length,'a',{0},{{ConstraintMaker(0) < 1}}}};
+  TA7.edges[length + 2] = {{2+length,3+length,'$',{0},{{ConstraintMaker(0) <= 1},
+                                                       {ConstraintMaker(0) >= 1}}},
+                           {2+length,2+length,'a',{0},{{ConstraintMaker(0) > 1}}}};
+  TA7.acceptingStates = {length+3};
+  TA7.max_constraints = {1};
+
+  // case 8
+  constexpr int numOfVariables8 = 1;
+  TimedAutomaton <numOfVariables8> TA8;
+  TA8.initialStates = {0};
+  TA8.edges.resize(2 + length * 2);
+  TA8.edges[0].reserve (length);
+  for (State i = 0; i < length; i++) {
+    TA8.edges[0].push_back({0,2 + 2 * i,'a',{0},{}});
+    TA8.edges[2 + 2 * i] ={{2 + 2 * i,3 + 2 * i,'a',{0},{{{ConstraintMaker(0) < 1}}}}};
+    TA8.edges[3 + 2 * i] ={{3 + 2 * i,1,'$',{},{{ConstraintMaker(0) < 1}}}};
+  }
+
+  TA8.max_constraints = {1};
+  TA8.acceptingStates = {1};
+#
+  // case 9
+  // The complex example in ICALP 2017
+  constexpr int numOfVariables9 = 1;
+  TimedAutomaton <numOfVariables9> TA9;
+  TA9.initialStates = {0};
+  // g_1 :: 0,1,2,3
+  // g_2 :: 4,5,6,7
+  // g_3 :: 8,9,10,11
+  // g_4 :: 12,13,14,15
+  // g_4, v <  v-, omega <  omega- :: 12
+  // g_4, v <  v-, omega >= omega- :: 13
+  // g_4, v >= v-, omega <  omega- :: 14
+  // g_4, v >= v-, omega >= omega- :: 15
+  TA9.edges = {
+    {{0,1,'0',{0},{}},
+     {0,1,'1',{0},{}},
+     {0,1,'2',{0},{}},
+     {0,1,'3',{0},{}}},
+    {{1,2,'4',{},{{ConstraintMaker(0) < 10}}},
+     {1,2,'5',{},{{ConstraintMaker(0) < 10}}},
+     {1,2,'6',{},{{ConstraintMaker(0) < 10}}},
+     {1,2,'7',{},{{ConstraintMaker(0) < 10}}}},
+    {{2,2,'4',{},{{ConstraintMaker(0) < 10}}},
+     {2,2,'5',{},{{ConstraintMaker(0) < 10}}},
+     {2,2,'6',{},{{ConstraintMaker(0) < 10}}},
+     {2,2,'7',{},{{ConstraintMaker(0) < 10}}},
+     {2,3,'8',{},{{ConstraintMaker(0) < 10}}},
+     {2,3,'9',{},{{ConstraintMaker(0) < 10}}},
+     {2,3,'a',{},{{ConstraintMaker(0) < 10}}},
+     {2,3,'b',{},{{ConstraintMaker(0) < 10}}}},
+    {{3,3,'8',{},{{ConstraintMaker(0) < 10}}},
+     {3,3,'9',{},{{ConstraintMaker(0) < 10}}},
+     {3,3,'a',{},{{ConstraintMaker(0) < 10}}},
+     {3,3,'b',{},{{ConstraintMaker(0) < 10}}},
+     {3,4,'c',{0},{{ConstraintMaker(0) < 10}}},
+     {3,4,'e',{0},{{ConstraintMaker(0) < 10}}},
+     {3,5,'d',{},{{ConstraintMaker(0) < 10}}},
+     {3,5,'f',{},{{ConstraintMaker(0) < 10}}}},
+    {{4,4,'c',{},{{ConstraintMaker(0) <= 2}}},
+     {4,4,'e',{},{{ConstraintMaker(0) <= 2}}},
+     {4,5,'d',{},{{ConstraintMaker(0) <= 2}}},
+     {4,5,'f',{},{{ConstraintMaker(0) <= 2}}}},
+    {{5,6,'d',{0},{}}},
+    {{6,7,'$',{},{{ConstraintMaker(0) > 1}}},
+     {6,6,'d',{},{{ConstraintMaker(0) <= 1}}}},
+    {}
+  };
+
+  TA9.acceptingStates = {7};
+  TA9.max_constraints = {1};
+
+  // case 10
+  // g_1 :: 1
+  // g_2 :: 2
+  // g_3 :: 3
+  // g_4 :: 4
+  // omega >= omega- :: 5
+  // omega <  omega- :: 6
+  // v >= v- :: 7
+  // v < v-  :: 8
+  TimedAutomaton <1> Phi8;
+  Phi8.initialStates = {9};
+  Phi8.edges = {{},{{1,2,'5',{},{}},{1,3,'2',{},{}}},{{2,4,'2',{},{}}},{{3,4,'5',{},{}},{3,5,'3',{},{}}},{{4,6,'3',{},{}}},{{5,6,'5',{},{}},{5,7,'4',{0},{ {ConstraintMaker{0} <= 10} }}},{{6,8,'4',{0},{ {ConstraintMaker{0} <= 10} }}},{{7,8,'5',{},{}}},{{8,0,'$',{},{ {ConstraintMaker{0} > 1} }}},{{9,1,'1',{},{}},{9,10,'5',{},{}}},{{10,2,'1',{},{}}}};
+  Phi8.acceptingStates = {0};
+  Phi8.max_constraints = {10};
+
+  // case 11
+  // g_1 :: 1
+  // g_2 :: 2
+  // g_3 :: 3
+  // g_4 :: 4
+  TimedAutomaton <1>  Phi5;
+  Phi5.initialStates = {9};
+  Phi5.edges = {{},{{1,5,'2',{},{ {ConstraintMaker{0} < 2} }},{1,5,'3',{},{ {ConstraintMaker{0} < 2} }},{1,5,'4',{},{ {ConstraintMaker{0} < 2} }}},{{2,6,'1',{},{ {ConstraintMaker{0} < 2} }},{2,6,'3',{},{ {ConstraintMaker{0} < 2} }},{2,6,'4',{},{ {ConstraintMaker{0} < 2} }}},{{3,7,'2',{},{ {ConstraintMaker{0} < 2} }},{3,7,'1',{},{ {ConstraintMaker{0} < 2} }},{3,7,'4',{},{ {ConstraintMaker{0} < 2} }}},{{4,8,'2',{},{ {ConstraintMaker{0} < 2} }},{4,8,'3',{},{ {ConstraintMaker{0} < 2} }},{4,8,'1',{},{ {ConstraintMaker{0} < 2} }}},{{5,0,'$',{},{}}},{{6,0,'$',{},{}}},{{7,0,'$',{},{}}},{{8,0,'$',{},{}}},{{9,1,'1',{0},{}},{9,2,'2',{0},{}},{9,3,'3',{0},{}},{9,4,'4',{0},{}}}};
+  Phi5.acceptingStates = {0};
+  Phi5.max_constraints = {2};
+
+  // case 12
+  // g_1 :: 1
+  // g_2 :: 2
+  // g_3 :: 3
+  // g_4 :: 4
+  TimedAutomaton <1> Phi4;
+  Phi4.initialStates = {3};
+  Phi4.edges = {{},{{1,2,'2',{},{ {ConstraintMaker{0} < 2} }}},{{2,0,'$',{},{}}},{{3,1,'1',{0},{}}}};
+  Phi4.acceptingStates = {0};
+  Phi4.max_constraints = {2};
+
+  // case 13
+  // 0,1 mode is normal
+  // 2,3 mode is power
+  // 0,2 not settled
+  // 1,3 settled
+  TimedAutomaton <1> hscc2014;
+  hscc2014.initialStates = {2};
+  hscc2014.edges = {{},{{1,3,'0',{},{ {ConstraintMaker{0} < 100} }}},{{2,1,'1',{0},{}}},{{3,0,'$',{},{}}}};
+  hscc2014.acceptingStates = {0};
+  hscc2014.max_constraints = {100};
+
+  // case 14
+  // 0,1 mode is normal
+  // 2,3 mode is power
+  // 0,2 not settled
+  // 1,3 settled
+  TimedAutomaton <1> hscc2014_2;
+  hscc2014_2.initialStates = {2};
+  hscc2014_2.edges = {{},{{1,3,'0',{},{}}},{{2,1,'1',{0},{}}},{{3,0,'$',{},{ {ConstraintMaker{0} > 100} }}}};
+  hscc2014_2.acceptingStates = {0};
+  hscc2014_2.max_constraints = {100};
 
   int N;
-  std::cin >> N;
-  w.resize (N);
-
-  for (auto &p : w) {
-    char c;
-    double t;
-    std::cin >> c >> t;
-    p = std::make_pair (c,t);
+  FILE* file = stdin;
+  if (fileName != "stdin") {
+    file = fopen(fileName.c_str(), "r");
   }
+  if (isBinary) {
+    fread(&N, sizeof(int), 1, file);
+  } else {
+    fscanf(file, "%d", &N);
+  }
+  
+#ifdef LAZY_READ
+  WordLazyDeque<std::pair<Alphabet,double> > w(N, file, isBinary);
+  AnsNum<ansZone> ans;
+#else
+  WordVector<std::pair<Alphabet,double> > w(N, file, isBinary);
+  AnsVec<ansZone> ans;
+#endif
 
-  int hashCalcCount = 0;
   for (int i = 0;i < loopTimes; i++ ) {
-    hashCalcCount = 0;
-    // auto start = std::chrono::system_clock::now();
     switch (testNum) {
     case 0:
-      timedBoyerMoore (w,TA0,ans,hashCalcCount);
+      naiveOnline (w,TA0,ans);
       break;
     case 1:
-      timedBoyerMoore (w,TA1,ans,hashCalcCount);
+      naiveOnline (w,TA1,ans);
       break;
     case 2:
-      timedBoyerMoore (w,TA2,ans,hashCalcCount);
+      naiveOnline (w,TA2,ans);
       break;
     case 3:
-      timedBoyerMoore (w,TA3,ans,hashCalcCount);
+      naiveOnline (w,TA3,ans);
       break;
     case 4:
-      timedBoyerMoore (w,TA4,ans,hashCalcCount);
+      naiveOnline (w,TA4,ans);
       break;
     case 5:
-      timedBoyerMoore (w,TA5,ans,hashCalcCount);
+      naiveOnline (w,TA5,ans);
       break;
     case 6:
-      timedBoyerMoore (w,TA6,ans,hashCalcCount);
+      naiveOnline (w,TA6,ans);
+      break;
+    case 7:
+      naiveOnline (w,TA7,ans);
+      break;
+    case 8:
+      naiveOnline (w,TA8,ans);
+      break;
+    case 9:
+      naiveOnline (w,TA9,ans);
+      break;
+    case 10:
+      naiveOnline (w,Phi8,ans);
+      break;
+    case 11:
+      naiveOnline (w,Phi5,ans);
+      break;
+    case 12:
+      naiveOnline (w,Phi4,ans);
+      break;
+    case 13:
+      naiveOnline (w,hscc2014,ans);
+      break;
+    case 14:
+      naiveOnline (w,hscc2014_2,ans);
       break;
     }
-    // auto end = std::chrono::system_clock::now();
-    // auto dur = end - start;
-    // auto msec = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
-    // std::cout << msec << " ms" << std::endl;
   }
+
 
   std::cout << ans.size() << " zones" << std::endl;
 
   if (vm.count("printhashnum")) {
     switch (testNum) {
     case 0:
-      std::cout << hashCalcCount << "/" << TA0.edges.size() << " hash calculated" << std::endl;    
+      std::cout << "/" << TA0.edges.size() << " hash calculated" << std::endl;    
       break;
     case 1:
-      std::cout << hashCalcCount << "/" << TA1.edges.size() << " hash calculated" << std::endl;    
+      std::cout << "/" << TA1.edges.size() << " hash calculated" << std::endl;    
       break;
     case 2:
-      std::cout << hashCalcCount << "/" << TA2.edges.size() << " hash calculated" << std::endl;    
+      std::cout << "/" << TA2.edges.size() << " hash calculated" << std::endl;    
       break;
     case 3:
-      std::cout << hashCalcCount << "/" << TA3.edges.size() << " hash calculated" << std::endl;    
+      std::cout << "/" << TA3.edges.size() << " hash calculated" << std::endl;    
       break;
     case 4:
-      std::cout << hashCalcCount << "/" << TA4.edges.size() << " hash calculated" << std::endl;    
+      std::cout << "/" << TA4.edges.size() << " hash calculated" << std::endl;    
       break;
     case 5:
-      std::cout << hashCalcCount << "/" << TA5.edges.size() << " hash calculated" << std::endl;    
+      std::cout << "/" << TA5.edges.size() << " hash calculated" << std::endl;    
       break;
     }
   }
@@ -342,6 +515,7 @@ int main(int argc, char *argv[])
     return 0;
   }
 
+#ifndef LAZY_READ
   // print result
   std::cout << "Results" << std::endl;
   for (const auto &a : ans) {
@@ -359,6 +533,7 @@ int main(int argc, char *argv[])
       a.upperDeltaConstraint.first << std::endl;
     std::cout << "=============================" << std::endl;
   }
+#endif
 
   return 0;
 }

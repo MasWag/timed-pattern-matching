@@ -7,19 +7,21 @@
 #include "types.hh"
 #include "automaton_operations.hh"
 #include "calcLs.hh"
-#include "ta_to_ra.hh"
-#include "ta_to_ra_naive.hh"
+#include "ta2za.hh"
 #include "partial_run_checker.hh"
 #include "intersection.hh"
+#include "ans_vec.hh"
 
-struct Zone {
+#include "utils.hh"
+
+struct ansZone {
   std::pair<double,bool> upperBeginConstraint;
   std::pair<double,bool> lowerBeginConstraint;
   std::pair<double,bool> upperEndConstraint;
   std::pair<double,bool> lowerEndConstraint;
   std::pair<double,bool> upperDeltaConstraint;
   std::pair<double,bool> lowerDeltaConstraint;  
-  inline bool operator == (const Zone z) const {
+  inline bool operator == (const ansZone z) const {
     return upperBeginConstraint == z.upperBeginConstraint &&
       lowerBeginConstraint == z.lowerBeginConstraint &&
       upperEndConstraint == z.upperEndConstraint &&
@@ -82,10 +84,10 @@ inline void updateConstraint(std::pair<double,bool>& upperConstraint,
 /*!
   @brief Boyer-Moore type algorithm for timed pattern matching
  */
-template <int NVar>
-void timedBoyerMoore (std::vector<std::pair<Alphabet,double> > word,
+template <int NVar, class OutputContainer>
+void timedBoyerMooreWithZone (std::vector<std::pair<Alphabet,double> > word,
                       TimedAutomaton <NVar> A,
-                      std::vector<Zone> &ans,
+                      AnsContainer<OutputContainer> &ans,
                       int &hashCalcCount)
 {
   // Internal state of BFS
@@ -97,12 +99,9 @@ void timedBoyerMoore (std::vector<std::pair<Alphabet,double> > word,
     std::pair<double,bool> lowerConstraint;
   };
 
-  //! A2 = A x A (product)
-  TimedAutomaton<NVar*2> A2;
-  //! RA = R^r(A)
-  RegionAutomaton RA;
-  //! RA2 = R(A x A)
-  RegionAutomaton RA2;
+  //! ZA = R^r(A)
+  ZoneAutomaton ZA;
+  ZA.abstractedStates.clear();
   int m = 0;
   //! The table of skip values
   //! A.State -> SkipValue
@@ -110,61 +109,90 @@ void timedBoyerMoore (std::vector<std::pair<Alphabet,double> > word,
   // precomputation
   {
     auto start = std::chrono::system_clock::now();
+    auto end = std::chrono::system_clock::now();
+    auto dur = end - start;
+    auto nsec = std::chrono::duration_cast<std::chrono::nanoseconds>(dur).count();
 
     // make R(A)
-    ta_to_ra (A,RA);
+    printDuration(ta2za(A,ZA), "ta2za: ");
     //! L = L'    
-    std::vector< std::vector<RAState> > L;
+    std::vector< std::pair<std::vector<ZAState>, std::string> > tmpL;
+    std::vector< std::vector<ZAState> > L;
+    std::unordered_set<Alphabet> endChars;
     //! Ls = L'_s
-    std::vector< std::vector<RAState> > Ls;
-    calcL (RA,L,m);
-
-#ifdef ONLY_RA
-    auto endra = std::chrono::system_clock::now();
-    auto durra = endra - start;
-    auto nsecra = std::chrono::duration_cast<std::chrono::nanoseconds>(durra).count();
-    std::cout << "precomputation: " << nsecra / 1000000.0 << " ms" << std::endl;
-    return;
-#endif
-
-    // make R'(A2)
-    intersectionTA (A,A,A2);
-    ta_to_ra_naive (A2,RA2);
-
-    PartialRunChecker isPartialRun2(RA2,RA,A.edges.size());
+    std::vector< std::vector<ZAState> > Ls;
+    printDuration(calcL (ZA, tmpL, m, endChars), "calcL: ");
+    L.reserve(tmpL.size());
+    std::transform(tmpL.begin(), tmpL.end(), std::back_inserter(L),
+                   [](std::pair<std::vector<ZAState>, std::string> x) { return x.first; });
+    std::sort (L.begin(), L.end ());
+    L.erase( std::unique(L.begin(), L.end()), L.end() );
 
     nTable.resize (A.edges.size(),0);
+
+    ZoneAutomaton ZA2;
+    ZA2.abstractedStates.clear();
+    // make R'(A2)
+    //! A2 = A x A (product)
+    TimedAutomaton<NVar*2> A2;
+    TimedAutomaton<NVar> A0 = A;
+    TimedAutomaton<NVar> As = A;
+    // TODO: move this to the before
+    intersectionTA (A0,As,A2);
 
     for (TAState s = 0; s < A.edges.size();s++) {
       hashCalcCount++;
       int ms;
-      calcLs (RA,Ls,s,m,ms);
+      printDuration(calcLs (ZA,Ls,s,m,ms), "calcL" << s << ": ");
       int n;
+      start = std::chrono::system_clock::now();
       for (n = 1;n < m-1; n++) {
         const auto rend = std::min (ms + n,m);
         const auto rsend = std::min (m - n,ms);
         // examine each r,rs
         if (std::any_of(L.begin(), L.end(),[&](const std::vector<RAState>&r) {
               return std::any_of(Ls.begin(), Ls.end(),[&](const std::vector<RAState>&rs){
+                  A2.initialStates = std::vector<TAState>{ZA.abstractedStates[r[n]].first + ZA.abstractedStates[rs.front()].first * TAState(A.stateSize())};
+                  Zone initialZone;
+                  initialZone.value.resize(NVar * 2 + 1, NVar * 2 + 1);
+                  initialZone.value.fill(Bounds(std::numeric_limits<double>::infinity(),false));
+                  initialZone.value.block(0,0,NVar+1,NVar+1) = ZA.abstractedStates[r[n]].second.value;
+                  initialZone.value.block(NVar+1,NVar+1,NVar,NVar) = ZA.abstractedStates[rs.front()].second.value.block(1,1,NVar,NVar);
+                  initialZone.value.block(0,NVar+1,1,NVar) = ZA.abstractedStates[rs.front()].second.value.block(0,1,1,NVar);
+                  initialZone.value.block(NVar+1,0,NVar,1) = ZA.abstractedStates[rs.front()].second.value.block(1,0,NVar,1);
+                  initialZone.M = ZA.abstractedStates[r[n]].second.M;
+                  initialZone.canonize();
+                  ta2za(A2,ZA2,initialZone);
+                  //                  printDuration(, "ta2za");
+                  PartialRunChecker<Zone> isPartialRun2(ZA2,ZA,A.edges.size());
                   return isPartialRun2 ({r.begin() + n,r.begin() + rend},
                                         {rs.begin(),rs.begin() + rsend});
                 });})) {
           break;
         }
       }
+#ifndef PRODUCT
+      end = std::chrono::system_clock::now();
+      dur = end - start;
+      nsec = std::chrono::duration_cast<std::chrono::nanoseconds>(dur).count();
+      std::cout << std::scientific << "nTable[" << s << "]: " << nsec / 1000000.0 << " ms" << std::endl;
+      std::cout << "nTable[" << s << "]: " << n << std::endl;
+#endif
       nTable[s] = n;
     }
-    auto end = std::chrono::system_clock::now();
-    auto dur = end - start;
-    auto nsec = std::chrono::duration_cast<std::chrono::nanoseconds>(dur).count();
+#ifdef PRODUCT
+    end = std::chrono::system_clock::now();
+    dur = end - start;
+    nsec = std::chrono::duration_cast<std::chrono::nanoseconds>(dur).count();
     std::cout << "precomputation: " << nsec / 1000000.0 << " ms" << std::endl;
+#endif
   }
 
   // main computation
   {
     auto start = std::chrono::system_clock::now();  
 
-    int i = word.size() - m + 1;
+    int i = word.size() + std::min(- m + 1,-1);
     std::vector<std::pair<std::pair<double,bool>,std::pair<double,bool> > > init;
     std::vector<InternalState> CStates;
     std::vector<InternalState> LastStates;
@@ -186,7 +214,7 @@ void timedBoyerMoore (std::vector<std::pair<Alphabet,double> > word,
         }
       }
     }
-  
+
     ans.clear();
     ans.reserve(init.size());
     for (const auto &t: init) {
@@ -212,14 +240,17 @@ void timedBoyerMoore (std::vector<std::pair<Alphabet,double> > word,
         }
       }
 
-      ans.reserve(ans.size() + init.size());
-      if (i <= 0) {
-        for (const auto& t: init) {
-          ans.push_back ({{word[i].second,false},{0,true},{word[i].second,true},{0,false},t.first,t.second});
-        }
-      } else {
-        for (const auto& t: init) {
-          ans.push_back ({{word[i].second,false},{word[i-1].second,true},{word[i].second,true},{word[i-1].second,false},t.first,t.second});
+      if (m == 1) {
+        // When there can be immidiate accepting
+        ans.reserve(ans.size() + init.size());
+        if (i <= 0) {
+          for (const auto& t: init) {
+            ans.push_back ({{word[i].second,false},{0,true},{word[i].second,true},{0,false},t.first,t.second});
+          }
+        } else {
+          for (const auto& t: init) {
+            ans.push_back ({{word[i].second,false},{word[i-1].second,true},{word[i].second,true},{word[i-1].second,false},t.first,t.second});
+          }
         }
       }
     
@@ -324,21 +355,16 @@ void timedBoyerMoore (std::vector<std::pair<Alphabet,double> > word,
         j++;
       }
       if (j >= word.size ()) {
-        LastStates = CStates;
+        LastStates = std::move(CStates);
       }
       int greatestN = 1;
       for (const InternalState& istate: LastStates) {
-        // if (greatestN == m-1) {
-        //   break;
-        // }
-
         int& n = nTable[istate.s];
-        // std::cout << istate.s << "," << nTable[istate.s] << std::endl;
         greatestN = std::max(n,greatestN);
       }
-      // std::cout << greatestN << std::endl;
       i -= greatestN;
     }
+
     auto end = std::chrono::system_clock::now();
     auto dur = end - start;
     auto nsec = std::chrono::duration_cast<std::chrono::nanoseconds>(dur).count();

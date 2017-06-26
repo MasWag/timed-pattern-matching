@@ -15,6 +15,7 @@ typedef char Alphabet;
 typedef uint32_t State;
 typedef State TAState;
 typedef State RAState;
+typedef State ZAState;
 
 //! @brief The return values of comparison of two values. Similar to strcmp.
 enum class Order {
@@ -105,6 +106,7 @@ struct TimedAutomaton {
 
 struct Region {
   using Interpretation = std::vector<double>;
+  using Tuple = std::tuple<std::vector< std::pair<int,int> >, std::list<std::list<int> >, std::vector<int> >;
   // (2,3) -> (2,3), (2,2) -> [2,2], (c,c>) -> (c,inf)  
   std::vector< std::pair<int,int> > integer_parts;
   // front() is the least.
@@ -194,9 +196,11 @@ struct Region {
       secondHalf = out;
     }
   }
-  inline std::tuple<std::vector< std::pair<int,int> >, std::list<std::list<int> >, std::vector<int> >
-  toTuple () {
+  inline Tuple toTuple () {
     return std::make_tuple(integer_parts,frac_order,max_constraints);
+  }
+  inline std::size_t getNumOfVar() const {
+    return max_constraints.size();
   }
 private:
   std::shared_ptr<Region> firstHalf;
@@ -210,6 +214,9 @@ struct NFA {
     Alphabet c;
     inline bool operator == (const Edge e) const {
       return source == e.source && target == e.target && c == e.c;
+    }
+    std::tuple<State, State, Alphabet> toTuple() const {
+      return std::tuple<State, State, Alphabet>(source, target, c);
     }
   };
 
@@ -226,10 +233,15 @@ struct NFA {
   }
 };
 
-struct RegionAutomaton : public NFA {
-  std::vector<std::pair<State,Region> > regionStates;
+template <typename Abstraction>
+struct AbstractionAutomaton : public NFA {
+  std::vector<std::pair<State, Abstraction> > abstractedStates;
+};
+
+struct RegionAutomaton : public AbstractionAutomaton<Region> {
   bool isPartialRun (std::vector<State>) const;
   bool isPartialRun2 (const RegionAutomaton &,const std::vector<State>&,const std::vector<State>&,const TAState);
 };
 
 std::ostream& operator << (std::ostream& os, const Region& r);
+
