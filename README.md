@@ -20,5 +20,5 @@ Usage
 Reference
 =========
 
-* [Masaki Waga](http://group-mmm.org/~mwaga/), [Ichiro Hasuo](http://group-mmm.org/~ichiro/), and [Kohei Suenaga](http://www.fos.kuis.kyoto-u.ac.jp/~ksuenaga/) **Efficient Online Timed Pattern Matching by Automata-Based Skipping** To appear in Proc. FORMATS 2017.
+* [Masaki Waga](http://group-mmm.org/~mwaga/), [Ichiro Hasuo](http://group-mmm.org/~ichiro/), and [Kohei Suenaga](http://www.fos.kuis.kyoto-u.ac.jp/~ksuenaga/) **Efficient Online Timed Pattern Matching by Automata-Based Skipping** To appear in Proc. FORMATS 2017. [[preprint pdf](https://arxiv.org/abs/1706.09174)]
 * [Masaki Waga](http://group-mmm.org/~mwaga/), [Takumi Akazaki](http://group-mmm.org/~takazaki/), and [Ichiro Hasuo](http://group-mmm.org/~ichiro/) **A Boyer-Moore Type Algorithm for Timed Pattern Matching** In Proc. FORMATS 2016. [[preprint pdf](https://arxiv.org/abs/1606.07207#)]
